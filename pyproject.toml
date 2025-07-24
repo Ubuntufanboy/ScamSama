@@ -1,0 +1,18 @@
+[project]
+name = "Scam-sama"
+version = "0.1.0"
+description = "Did you know Neuro became a scambaiter?"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "discord-ext-voice-recv>=0.5.2a179",
+    "discord-py>=2.5.2",
+    "flask>=3.1.1",
+    "flask-sock>=0.7.0",
+    "neuro-api>=1.0.0",
+    "pyfiglet>=1.0.3",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.4",
+    "rich>=14.0.0",
+    "twilio>=9.6.5",
+]
