@@ -1,8 +1,20 @@
+"""
+ScamSama v1.0.0
+Ubuntufanboy July 23rd 2025 https://github.com/Ubuntufanboy/ScamSama
+
+Licenced under LGPL-2.1 license.
+
+Thank you VedalAI for creating such a wonderful platform and using my code! I hope you enjoy it!
+"""
+
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
-# We run this from inside src/ and .env is in the root directory of the project
-load_dotenv("../.env")
+# Build paths inside the project like this: root_dir / 'subdir'
+root_dir = Path(__file__).parent.parent
+env_path = root_dir / '.env'
+load_dotenv(dotenv_path=env_path)
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
