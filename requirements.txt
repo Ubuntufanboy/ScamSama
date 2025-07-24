@@ -1,0 +1,28 @@
+# ScamSama Requirements
+# Core Dependencies for ScamSama functionality
+
+# Discord Bot Framework
+discord.py>=2.3.0
+discord-ext-voice-recv>=0.2.1
+
+# Twilio Integration
+twilio>=8.10.0
+
+# Web Framework for Twilio Webhooks
+flask>=2.3.0
+flask-sock>=0.6.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
+
+# Audio Processing
+# Note: audioop is built into Python 3.x
+
+# Beautiful TUI Interface Dependencies
+rich>=13.7.0
+pyfiglet>=1.0.2
+
+# HTTP Requests (for ngrok API checking)
+requests>=2.31.0
+
+
