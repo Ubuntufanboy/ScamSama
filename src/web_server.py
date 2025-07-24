@@ -10,13 +10,21 @@ Thank you VedalAI for creating such a wonderful platform and using my code! I ho
 import base64
 import json
 import audioop
-from flask import Flask
+from flask import Flask, request
 from flask_sock import Sock
 import state
 
 # Flask works pretty well for this. Just make sure you are hosting the ngrok proxy as well for this to work properly
 app = Flask(__name__)
 sock = Sock(app)
+
+@app.route('/call-status', methods=['POST'])
+def call_status():
+    status = request.form['CallStatus']
+    print(f"Call status: {status}")
+    if status == 'completed' or status == 'no-answer':
+        state.call_running = False
+    return ''
 
 @sock.route('/media')
 def media(ws):

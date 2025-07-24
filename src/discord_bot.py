@@ -53,15 +53,10 @@ class TwilioSink(AudioSink):
             pcm_8k, self.resample_state = audioop.ratecv(
                 mono_48k, 2, 1, 48000, 8000, self.resample_state
             )
-            """
-            WARNING: I AM AN AMERICAN. THE USA USES MULAW FOR TELECOMMUNICATIONS
-
-            CHECK WITH YOUR COUNTRY TO SEE WHAT TELECOMMUNICATION PROTOCAL YOU USE.
-            The UK and most of Europe uses A-law while the USA and Japan use Mu-law.
-            """
-
-            transcoded = audioop.lin2ulaw(pcm_8k, 2) # For USA and Japan
-            #transcoded = audioop.lin2alaw(pcm_8k, 2) # For Europe
+            if config.COUNTRY_CODE in ["US", "JP"]:
+                transcoded = audioop.lin2ulaw(pcm_8k, 2)
+            else:
+                transcoded = audioop.lin2alaw(pcm_8k, 2)
 
             payload = base64.b64encode(transcoded).decode('utf-8')
             state.twilio_websocket.send(json.dumps({
@@ -75,9 +70,21 @@ class TwilioSink(AudioSink):
     def cleanup(self):
         print("TwilioSink cleanup done.")
 
+async def check_voice_channel():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        await asyncio.sleep(10)
+        if state.voice_client and state.voice_client.is_connected():
+            if len(state.voice_client.channel.members) == 1:
+                try:
+                    await state.voice_client.disconnect()
+                finally:
+                    state.voice_client = None
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    bot.loop.create_task(check_voice_channel())
 
 @bot.event
 async def on_message(message):
@@ -96,24 +103,31 @@ async def on_message(message):
             await state.voice_client.move_to(channel)
         else:
             try:
+                await asyncio.sleep(1) # Add a small delay
                 state.voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
             except discord.errors.ClientException as e:
                 await message.channel.send(f"Error connecting to voice channel: {e}")
+                state.voice_client = None
                 return
             except Exception as e:
                 await message.channel.send(f"An unexpected error occurred while connecting to voice: {e}")
+                state.voice_client = None
                 return
 
         await message.channel.send(f'Joined {channel.name}, calling given phone number...')
 
         try:
             loop = asyncio.get_running_loop()
+            state.call_running = True
             call = await loop.run_in_executor(
                 None,
                 lambda: twilio_client.calls.create(
-                    to=config.YOUR_PERSONAL_PHONE_NUMBER,
+                    to=config.YOUR_NUMBER_TO_CALL,
                     from_=config.YOUR_TWILIO_PHONE_NUMBER,
-                    twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>'
+                    twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>',
+                    status_callback=f'{config.NGROK_BASE_URL}/call-status',
+                    status_callback_method='POST',
+                    status_callback_event=['completed', 'no-answer'],
                 )
             )
             await message.channel.send(f"Call SID: `{call.sid}`")
@@ -129,13 +143,32 @@ async def on_message(message):
         state.voice_client.listen(TwilioSink())
         state.voice_client.play(TwilioAudioSource(state.audio_queue), after=lambda e: print(f'Player error: {e}') if e else None)
 
-    elif message.content.startswith('!hangup'):
+        while state.call_running and state.voice_client and state.voice_client.is_connected():
+            await asyncio.sleep(1)
+
         if state.voice_client and state.voice_client.is_connected():
+            if not state.call_running:
+                # Need to check the status from the Twilio API
+                call = twilio_client.calls(call.sid).fetch()
+                if call.status == 'no-answer':
+                    await message.channel.send("The phone number did not pick up.")
+                else:
+                    await message.channel.send("The client has disconnected the call.")
             state.voice_client.stop_listening()
             state.voice_client.stop()
             await asyncio.sleep(0.5)
             await state.voice_client.disconnect()
             state.voice_client = None
-            await message.channel.send('Disconnected...')
+
+    elif message.content.startswith('!hangup'):
+        if state.voice_client and state.voice_client.is_connected():
+            try:
+                state.voice_client.stop_listening()
+                state.voice_client.stop()
+                await asyncio.sleep(0.5)
+                await state.voice_client.disconnect()
+            finally:
+                state.voice_client = None
+                await message.channel.send('Disconnected...')
         else:
             await message.channel.send('Not in a voice channel.')
