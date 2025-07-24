@@ -242,7 +242,7 @@ class ScamSamaLauncher:
                 return None
 
         except Exception as e:
-            console.print(f"❌ Error starting ngrok: {e}", style="red")
+            console.print(f"Error starting ngrok: {e}", style="red")
             return None
 
     def run_scamsama(self):
