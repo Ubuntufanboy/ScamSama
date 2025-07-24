@@ -87,24 +87,41 @@ async def on_message(message):
 
     if message.content.startswith('!callme'):
         if not message.author.voice:
-            return await message.channel.send('You must be in a voice channel.')
+            await message.channel.send('You must be in a voice channel.')
+            return
+
         channel = message.author.voice.channel
 
         if state.voice_client and state.voice_client.is_connected():
             await state.voice_client.move_to(channel)
         else:
-            state.voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            try:
+                state.voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+            except discord.errors.ClientException as e:
+                await message.channel.send(f"Error connecting to voice channel: {e}")
+                return
+            except Exception as e:
+                await message.channel.send(f"An unexpected error occurred while connecting to voice: {e}")
+                return
 
         await message.channel.send(f'Joined {channel.name}, calling given phone number...')
+
         try:
-            call = twilio_client.calls.create(
-                to=config.YOUR_PERSONAL_PHONE_NUMBER,
-                from_=config.YOUR_TWILIO_PHONE_NUMBER,
-                twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>'
+            loop = asyncio.get_running_loop()
+            call = await loop.run_in_executor(
+                None,
+                lambda: twilio_client.calls.create(
+                    to=config.YOUR_PERSONAL_PHONE_NUMBER,
+                    from_=config.YOUR_TWILIO_PHONE_NUMBER,
+                    twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>'
+                )
             )
-            await message.channel.send(f"Call SID: `{call.sid}`") # Probably best to redact this from public. Don't run in neurocord for example
+            await message.channel.send(f"Call SID: `{call.sid}`")
         except Exception as e:
-            return await message.channel.send(f"Error making call: {e}")
+            await message.channel.send(f"Error making call: {e}")
+            if state.voice_client:
+                await state.voice_client.disconnect()
+            return
 
         while not state.audio_queue.empty():
             state.audio_queue.get_nowait()
@@ -116,7 +133,9 @@ async def on_message(message):
         if state.voice_client and state.voice_client.is_connected():
             state.voice_client.stop_listening()
             state.voice_client.stop()
-            await asyncio.sleep(0.5) # Might prevent race conditions or might not. Helps me sleep at night though
+            await asyncio.sleep(0.5)
             await state.voice_client.disconnect()
             state.voice_client = None
-        await message.channel.send('Disconnected...')
+            await message.channel.send('Disconnected...')
+        else:
+            await message.channel.send('Not in a voice channel.')
