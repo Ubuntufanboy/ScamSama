@@ -38,7 +38,7 @@ You first need to set up some free accounts (Although for practical usage paid a
 
 3. Discord
 
-    - Create discord bot with voice channel permissions
+    - Create discord bot with voice channel permissions and all intents turned on
     - Invite them into a ***PRIVATE*** discord server (Bot sometimes leaks info)
     - Run the bot with ``cd src/`` then ``python3 main.py``
     - Join Vc then type in a channel ``!callme`` after Neuro is already in VC (All other users should be muted)
