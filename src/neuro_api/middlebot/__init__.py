@@ -29,7 +29,8 @@ class NeuroAPIProps(AbstractNeuroAPI):
 
             # Action results should be sent to validate inputs
             self.send_action_result(actionData.id_, True)
-            success, message = await action.perform_action(actionData)
+            message = await action.perform_action(actionData)
+            self.send_context(message)
 
         except ValidationError as e:
             self.send_action_result(actionData.id_, False, f"You inputted something invalid: {e}")
