@@ -17,11 +17,6 @@ class AbstractAction(ABC):
         pass
 
     @property
-    @abstractmethod
-    def permission(self) -> str:
-        pass
-
-    @property
     def schema(self) -> Optional[dict]:
         return None
 
@@ -52,10 +47,6 @@ class MuteAction(AbstractAction):
         return "Mutes the Discord bot."
 
     @property
-    def permission(self) -> str:
-        return "user"
-
-    @property
     def schema(self) -> Optional[dict]:
         return {
             "type": "object",
@@ -74,10 +65,6 @@ class UnmuteAction(AbstractAction):
     @property
     def desc(self) -> str:
         return "Unmutes the Discord bot."
-
-    @property
-    def permission(self) -> str:
-        return "user"
 
     @property
     def schema(self) -> Optional[dict]:
