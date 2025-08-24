@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from neuro_api.command import Action
 from neuro_api.api import NeuroAction
 from typing import List, Optional
 
