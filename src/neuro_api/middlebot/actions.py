@@ -59,8 +59,7 @@ class MuteAction(AbstractAction):
     def schema(self) -> Optional[dict]:
         return {
             "type": "object",
-            "properties": {},
-            "additionalProperties": False
+            "properties": {}
         }
 
     async def perform_action(self, actionData: NeuroAction) -> str:
@@ -84,8 +83,7 @@ class UnmuteAction(AbstractAction):
     def schema(self) -> Optional[dict]:
         return {
             "type": "object",
-            "properties": {},
-            "additionalProperties": False
+            "properties": {}
         }
 
     async def perform_action(self, actionData: NeuroAction) -> str:
