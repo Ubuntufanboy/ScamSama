@@ -1,6 +1,6 @@
 """
 ScamSama v1.0.0
-Ubuntufanboy July 23rd 2025 https://github.com/Ubuntufanboy/ScamSama
+Ubuntufanboy July 23rd 2025 https://github.com/Ubuntufanboy/ScamSama  
 
 Licenced under LGPL-2.1 license.
 
@@ -36,7 +36,7 @@ except ImportError:
 console = Console()
 
 class ScamSamaLauncher:
-    def __init__(self, verbose=False):
+    def __init__(self, verbose=True):
         self.verbose = verbose
         self.root_dir = Path(__file__).parent
         self.env_file = self.root_dir / ".env"
@@ -150,7 +150,7 @@ class ScamSamaLauncher:
         if self.verbose:
             console.print(Panel(
                 "Discord Bot Setup\n\n"
-                "1. Go to https://discord.com/developers/applications\n"
+                "1. Go to https://discord.com/developers/applications  \n"
                 "2. Create a new application\n"
                 "3. Go to 'Bot' section and create a bot\n"
                 "4. Copy the bot token",
@@ -168,7 +168,7 @@ class ScamSamaLauncher:
         if self.verbose:
             console.print(Panel(
                 "Twilio Setup\n\n"
-                "1. Create account at https://www.twilio.com\n"
+                "1. Create account at https://www.twilio.com  \n"
                 "2. Get your Account SID (starts with 'AC')\n"
                 "3. Get your Auth Token\n"
                 "4. Buy a phone number",
@@ -194,8 +194,14 @@ class ScamSamaLauncher:
         try:
             result = subprocess.run(["which", "ngrok"], capture_output=True)
             if result.returncode != 0:
-                console.print("ngrok not found. Please install ngrok first:", style="red")
-                console.print("Visit: https://ngrok.com/download", style="blue")
+                console.print("ngrok not found. Please install ngrok:", style="red")
+                console.print("\nInstallation instructions:", style="blue")
+                console.print("1. Visit https://ngrok.com/download to download ngrok for your platform")
+                console.print("2. For Windows: Install via Microsoft Store for the most secure experience with automatic updates")
+                console.print("3. For Linux/macOS: Download the binary and make it executable")
+                console.print("4. After installation, authenticate with your token:")
+                console.print("   ngrok config add-authtoken <token>")
+                console.print("5. You can get a free token by signing up at https://dashboard.ngrok.com/signup")
                 return None
 
             self.ngrok_process = subprocess.Popen(
@@ -285,6 +291,8 @@ class ScamSamaLauncher:
 
     def main_menu(self):
         while True:
+            # don't keep in prod hehe
+            time.sleep(2)
             console.clear()
             self.display_banner()
 
@@ -356,10 +364,10 @@ class ScamSamaLauncher:
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="ScamSama Launcher")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Disable verbose output")
     args = parser.parse_args()
 
-    launcher = ScamSamaLauncher(verbose=args.verbose)
+    launcher = ScamSamaLauncher(verbose=not args.quiet)
     try:
         launcher.main_menu()
     except KeyboardInterrupt:
