@@ -6,6 +6,9 @@ Created by Ubuntufanboy
 Discord: @apolloiscool for any questions
 
 Check out Vedal987's streams here: https://www.twitch.tv/vedal987
+
+**DISCLAIMER**: I don't know what I'm doing... I am new to Neurosama... The code is really bad (Feel free to send PRs fixing it!). Hopefully as the community gets more involved the code will drastically improve.
+
 ## What is ScamSama?
 ScamSama is a NeuroSama implementation for telephone calling specifically in the domain of scambaiting. This code grants Neuro the ability to call lists of scammers and promptly waste their time.
 
