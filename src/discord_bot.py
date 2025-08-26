@@ -5,14 +5,6 @@ Ubuntufanboy July 23rd 2025 https://github.com/Ubuntufanboy/ScamSama
 Licenced under LGPL-2.1 license.
 
 Thank you VedalAI for creating such a wonderful platform and using my code! I hope you enjoy it!
-
-CHANGES IN THIS VERSION:
-- FIXED: Context updates now guaranteed for all call status changes
-- FIXED: Proper handling of WebSocket closure events without duplicate context messages
-- FIXED: Added proper WebSocket connection state checks before sending messages
-- FIXED: Added missing check_voice_channel function definition
-- Added more robust error handling for all context message delivery
-- Comprehensive logging for context message delivery verification
 """
 
 #########################################################
