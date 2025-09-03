@@ -7,6 +7,8 @@ Licenced under LGPL-2.1 license.
 Thank you VedalAI for creating such a wonderful platform and using my code! I hope you enjoy it!
 """
 
+from __future__ import annotations
+
 # These are all Stdlib
 import os
 import sys
@@ -15,7 +17,6 @@ import json
 import time
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional
 
 try:
     from rich.console import Console
@@ -36,16 +37,16 @@ except ImportError:
 console = Console()
 
 class ScamSamaLauncher:
-    def __init__(self, verbose=True):
+    def __init__(self, verbose: bool = True) -> None:
         self.verbose = verbose
         self.root_dir = Path(__file__).parent
         self.env_file = self.root_dir / ".env"
         self.src_dir = self.root_dir / "src"
-        self.config = {}
-        self.ngrok_process = None
+        self.config: dict[str, str] = {}
+        self.ngrok_process: subprocess.Popen[str]
         self.flask_running = False
 
-    def display_banner(self):
+    def display_banner(self) -> None:
         if not self.verbose:
             return
         try:
@@ -91,7 +92,7 @@ class ScamSamaLauncher:
             console.print("All prerequisites found!", style="green")
         return True
 
-    def install_requirements(self):
+    def install_requirements(self) -> bool:
         if self.verbose:
             console.print("\nInstalling Python requirements...", style="bold yellow")
 
@@ -121,7 +122,7 @@ class ScamSamaLauncher:
 
         return True
 
-    def load_env_config(self) -> Dict[str, str]:
+    def load_env_config(self) -> dict[str, str]:
         config = {}
         if self.env_file.exists():
             with open(self.env_file, 'r') as f:
@@ -132,7 +133,7 @@ class ScamSamaLauncher:
                         config[key] = value
         return config
 
-    def save_env_config(self, config: Dict[str, str]):
+    def save_env_config(self, config: dict[str, str]) -> None:
         # Autosave to prevent needing to retype inbetween runs
         with open(self.env_file, 'w') as f:
             f.write("# ScamSama Configuration\n")
@@ -140,7 +141,7 @@ class ScamSamaLauncher:
             for key, value in config.items():
                 f.write(f"{key}={value}\n")
 
-    def setup_configuration(self):
+    def setup_configuration(self) -> dict[str, str]:
         if self.verbose:
             console.print("\nConfiguration Setup", style="bold yellow")
             console.print("Let's set up your ScamSama configuration step by step!\n")
@@ -186,7 +187,7 @@ class ScamSamaLauncher:
             console.print("Configuration saved!", style="green")
         return config
 
-    def start_ngrok(self) -> Optional[str]:
+    def start_ngrok(self) -> str | None:
         """Start ngrok tunnel"""
         if self.verbose:
             console.print("\nStarting ngrok tunnel...", style="bold yellow")
@@ -212,20 +213,20 @@ class ScamSamaLauncher:
             )
 
             # Wait for ngrok to start and get the URL. Set a timeout just in case though
-            url = None
+            url: str | None = None
             time.sleep(2)  # Surely that's enough time... glueless
             for _ in range(30):  # Wait up to 30 seconds just in case
                 try:
                     # Try to get ngrok status with cURL. Might not work on windows tbh idk
-                    result = subprocess.run(
+                    tunnel_result = subprocess.run(
                         ["curl", "-s", "http://localhost:4040/api/tunnels"],
                         capture_output=True, text=True, timeout=5
                     )
-                    if result.returncode == 0 and result.stdout:
+                    if tunnel_result.returncode == 0 and tunnel_result.stdout:
                         # God is dead. And we killed him...
-                        data = json.loads(result.stdout)
+                        data = json.loads(tunnel_result.stdout)
                         if data.get('tunnels') and len(data['tunnels']) > 0:
-                            url = data['tunnels'][0]['public_url']
+                            url = str(data['tunnels'][0]['public_url'])
                             break
                 except (json.JSONDecodeError, IndexError, KeyError):
                     pass # Glueless
@@ -251,7 +252,7 @@ class ScamSamaLauncher:
             console.print(f"Error starting ngrok: {e}", style="red")
             return None
 
-    def run_scamsama(self):
+    def run_scamsama(self) -> None:
         if self.verbose:
             console.print("\nStarting ScamSama...", style="bold yellow")
 
@@ -264,7 +265,7 @@ class ScamSamaLauncher:
         except Exception as e:
             console.print(f"Error running ScamSama: {e}", style="red")
 
-    def show_status(self):
+    def show_status(self) -> None:
         config = self.load_env_config()
 
         table = Table(title="Current Configuration", border_style="blue")
@@ -289,7 +290,7 @@ class ScamSamaLauncher:
 
         console.print(table)
 
-    def main_menu(self):
+    def main_menu(self) -> None:
         while True:
             # don't keep in prod hehe
             time.sleep(2)
@@ -361,7 +362,7 @@ class ScamSamaLauncher:
                 console.print("Goodbye!", style="bold blue")
                 break
 
-def main():
+def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="ScamSama Launcher")
     parser.add_argument("-q", "--quiet", action="store_true", help="Disable verbose output")

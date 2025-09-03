@@ -7,6 +7,8 @@ Licenced under LGPL-2.1 license.
 Thank you VedalAI for creating such a wonderful platform and using my code! I hope you enjoy it!
 """
 
+from __future__ import annotations
+
 #########################################################
 ###                README. Seriously...               ###
 ### DO NOT RUN THIS IN NEUROCORD OR ANY PUBLIC SERVER ###
@@ -28,15 +30,18 @@ import logging
 import traceback
 import uuid
 from typing import Dict, Any, Optional
+from neuro_websockets import AbstractAsyncioWebsocketsNeuroAPI
+from neuro_api.command import Action
+from neuro_api.api import NeuroAction
 
 # Configure detailed logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
+    handlers=(
         logging.FileHandler("scamsama.log"),
         logging.StreamHandler()
-    ]
+    )
 )
 logger = logging.getLogger("ScamSama")
 
@@ -50,7 +55,7 @@ bot = discord.Client(intents=intents)
 
 class TwilioAudioSource(discord.AudioSource):
     """Audio source that pulls data from a queue for sending to Twilio."""
-    def __init__(self, queue):
+    def __init__(self, queue: queue.Queue) -> None:
         self.queue = queue
 
     def read(self):
@@ -58,7 +63,7 @@ class TwilioAudioSource(discord.AudioSource):
 
 class TwilioSink(AudioSink):
     """Audio sink that processes incoming voice data and sends it to Twilio."""
-    def __init__(self):
+    def __init__(self) -> None:
         self.resample_state = None
         # Precompute silence packets for both codecs (160 bytes = 20ms @ 8kHz)
         self.silence_ulaw = b'\xFF' * 160  # ULAW silence value
@@ -69,7 +74,7 @@ class TwilioSink(AudioSink):
     def wants_opus(self) -> bool:
         return False
 
-    def write(self, user, voice_data):
+    def write(self, user, voice_data) -> None:
         """Process incoming voice data and send it to Twilio."""
         global is_muted_outbound
         if self.is_closed or not state.ws_open or not state.twilio_websocket:
@@ -79,7 +84,7 @@ class TwilioSink(AudioSink):
             # MUTE HANDLING: Send precomputed silence when muted
             if is_muted_outbound:
                 payload = base64.b64encode(
-                    self.silence_ulaw if config.COUNTRY_CODE in ["US", "JP"] 
+                    self.silence_ulaw if config.COUNTRY_CODE in ("US", "JP") 
                     else self.silence_alaw
                 ).decode('utf-8')
                 state.twilio_websocket.send(json.dumps({
@@ -107,11 +112,11 @@ class TwilioSink(AudioSink):
             logger.error(f"Error in TwilioSink.write: {e}")
             logger.debug(traceback.format_exc())
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         logger.info("TwilioSink cleanup done.")
         self.is_closed = True
 
-    def on_websocket_closed(self, code, reason):
+    def on_websocket_closed(self, code: int, reason: str) -> None:
         """Handle Twilio WebSocket closure immediately."""
         logger.warning(f"Twilio WebSocket closed with code {code}: {reason}")
         self.is_closed = True
@@ -125,69 +130,287 @@ class TwilioSink(AudioSink):
             # Use the bot loop to schedule the handling
             bot.loop.create_task(handle_twilio_websocket_closure(code, reason))
 
+class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
+    __slots__ = ()
+
+    def __init__(self, websocket: websockets.ClientConnection) -> None:
+        super().__init__(self, "ScamSama", websocket)
+
+    async def setup(self) -> None:
+        """Handle setup."""
+        # 1. Send startup message (must be first)
+        await api.send_startup_command()
+        logger.info("✓ Sent startup message to Tony")
+        
+        # 2. Register available actions
+        actions = [
+            Action(
+                "mute",
+                "Mutes the outbound audio (so the victim can't hear you)",
+            ),
+            Action(
+                "unmute",
+                "Unmutes the outbound audio",
+            ),
+            Action(
+                "join",
+                "Initiates a call to the target phone number",
+            ),
+            Action(
+                "hangup",
+                "Ends the current call",
+            ),
+        ]
+        
+        await api.register_actions(actions)
+        logger.info(f"✓ Registered {len(actions)} actions with Tony")
+
+    async def handle_action(self, action: NeuroAction) -> None:
+        """Handle an Action from Neuro."""
+        # Data is JSON-stringified, so we need to parse it
+        action_params = json.loads(action.data) if action.data is not None else {}
+        
+        logger.info(f"→ Received action request: {action_name} (ID: {action_id})")
+
+        success = True
+        message: str | None = None
+        
+        # Execute the action
+        if action.name == "mute":
+            success, message = await self.handle_mute_action()
+        elif action.name == "unmute":
+            success, message = await self.handle_unmute_action()
+        elif action.name == "join":
+            success, message = await self.handle_join_action()
+        elif action.name == "hangup":
+            success, message = await self.handle_hangup_action()
+        else:
+            logger.warning(f"Unknown action received: {action.name}")
+            message = f"Unknown action: {action.name}"
+        
+        # 4. Send action result back to Tony
+        await self.send_action_result(action.id_, success, message)
+        logger.info(f"← Sent action result for {action.name}: success={success}")
+
+    # Neuro API Action Handlers
+    # These functions implement the same functionality as the former Discord commands
+    # but are now triggered by WebSocket messages instead of Discord messages
+    # Each returns a tuple: (success: bool, message: str)
+
+    async def handle_mute_action(self) -> tuple[bool, str]:
+        """Handles the 'mute' Neuro API action."""
+        global is_muted_outbound
+        is_muted_outbound = True
+        logger.info("Outbound audio muted")
+        await send_status_message("Muted!")
+        
+        # Send context to Tony about the mute action
+        await self.send_context("I have muted the outbound audio. The scammer cannot hear me now.")
+        
+        return True, "Successfully muted"
+
+    async def handle_unmute_action(self) -> tuple[bool, str]:
+        """Handles the 'unmute' Neuro API action."""
+        global is_muted_outbound
+        is_muted_outbound = False
+        logger.info("Outbound audio unmuted")
+        await send_status_message("Unmuted!")
+        
+        # Send context to Tony about the unmute action
+        await self.send_context("I have unmuted the outbound audio. The scammer can now hear me.")
+        
+        return True, "Successfully unmuted"
+
+    async def handle_join_action(self) -> tuple[bool, str]:
+        """Handles the 'join' Neuro API action (initiates a call)."""
+        logger.info("Processing 'join' action to initiate call")
+        
+        # First, make sure we're not already in a call
+        if state.call_running:
+            warning_msg = "Already in a call. Please hang up first."
+            logger.warning(warning_msg)
+            await send_status_message(warning_msg)
+            
+            # Send context to Tony
+            await self.send_context(
+                "I'm already in a call. You need to hang up before initiating a new call.",
+                silent=False
+            )
+            
+            return False, warning_msg
+        
+        # Make sure we're not already connected to a voice channel
+        if state.voice_client and state.voice_client.is_connected():
+            logger.info("Already connected to voice channel, disconnecting first...")
+            await cleanup_voice_connection()
+        
+        # Find a voice channel to join (first available in the first guild)
+        if len(bot.guilds) == 0:
+            error_msg = "Error: Bot is not in any guilds"
+            logger.error(error_msg)
+            await send_status_message(error_msg)
+            return False, error_msg
+            
+        guild = bot.guilds[0]
+        voice_channel = next((c for c in guild.channels if isinstance(c, discord.VoiceChannel)), None)
+        
+        if not voice_channel:
+            error_msg = "Error: No voice channels available"
+            logger.error(error_msg)
+            await send_status_message(error_msg)
+            return False, error_msg
+        
+        try:
+            logger.info(f"Connecting to voice channel: {voice_channel.name}")
+            await asyncio.sleep(1)  # Add a small delay
+            state.voice_client = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+            await send_status_message(f'Joined {voice_channel.name}')
+        except discord.errors.ClientException as e:
+            error_msg = f"Error connecting to voice channel: {e}"
+            logger.error(error_msg)
+            await send_status_message(error_msg)
+            state.voice_client = None
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Unexpected error while connecting to voice: {e}"
+            logger.error(error_msg)
+            logger.debug(traceback.format_exc())
+            await send_status_message(error_msg)
+            state.voice_client = None
+            return False, error_msg
+
+        try:
+            loop = asyncio.get_running_loop()
+            state.call_running = True
+            call = await loop.run_in_executor(
+                None,
+                lambda: twilio_client.calls.create(
+                    to=config.YOUR_NUMBER_TO_CALL,
+                    from_=config.YOUR_TWILIO_PHONE_NUMBER,
+                    twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>',
+                    status_callback=f'{config.NGROK_BASE_URL}/call-status',
+                    status_callback_method='POST',
+                    status_callback_event=('completed', 'no-answer', 'canceled', 'failed', 'busy'),
+                )
+            )
+            logger.info(f"✓ Call initiated with SID: {call.sid}")
+            await send_status_message(f"Call SID: `{call.sid}`")
+            
+            # Store the call SID for monitoring
+            state.call_sid = call.sid
+            
+            # Clear any pending audio
+            while not state.audio_queue.empty():
+                state.audio_queue.get_nowait()
+            
+            # Start listening and playing
+            state.voice_client.listen(TwilioSink())
+            state.voice_client.play(TwilioAudioSource(state.audio_queue), 
+                                   after=lambda e: logger.error(f'Player error: {e}') if e else None)
+            
+            # Send context to Tony that we've initiated a call
+            await self.send_context(
+                "I've successfully initiated a call to the scammer. "
+                "We are now connected and I'm listening to the call. "
+                "Please provide guidance on how to proceed.",
+                silent=False
+            )
+            
+            return True, f"Call initiated with SID: {call.sid}"
+            
+        except Exception as e:
+            error_msg = f"Error making call: {e}"
+            logger.error(error_msg)
+            logger.debug(traceback.format_exc())
+            await send_status_message(error_msg)
+            
+            # Clean up voice connection on call failure
+            await cleanup_voice_connection()
+            
+            # Send context to Tony about the error
+            await self.send_context(
+                f"Failed to initiate call: {str(e)}. I've disconnected from the voice channel to prevent errors.",
+                silent=False
+            )
+            
+            return False, error_msg
+
+    async def handle_hangup_action(self) -> tuple[bool, str]:
+        """Handles the 'hangup' Neuro API action (ends the call)."""
+        logger.info("Processing 'hangup' action to end call")
+        
+        # If we're not in a call, just return
+        if not state.call_running:
+            warning_msg = "Not currently in a call"
+            logger.warning(warning_msg)
+            await send_status_message(warning_msg)
+            
+            # Send context to Tony
+            await self.send_context(
+                "I'm not currently in a call, so there's nothing to hang up.",
+                silent=False
+            )
+            
+            return False, warning_msg
+        
+        # Clean up the voice connection
+        await cleanup_voice_connection()
+        
+        # Send context to Tony that we've hung up
+        await self.send_context(
+            "I've ended the call as requested. We are no longer connected to the scammer.",
+            silent=False
+        )
+            
+        return True, "Successfully hung up"
+
+
 # Global reference to the current Tony websocket connection
-tony_websocket = None
+tony_api: ScamSamaNeuroAPI | None = None
 
-def get_tony_websocket():
-    """Returns the current Tony websocket connection if available."""
-    global tony_websocket
-    return tony_websocket
 
-async def send_context_to_tony(message, silent=False):
+def get_tony_api() -> ScamSamaNeuroAPI | None:
+    """Return the current Tony websocket connection if available."""
+    global tony_api
+    return tony_api
+
+
+async def send_context_to_tony(message: str, silent: bool=False) -> bool:
     """
     Sends a context message to the Tony server.
     
-    Format follows Neuro API specification:
-    {
-        "command": "context",
-        "game": "ScamSama",
-        "data": {
-            "message": string,
-            "silent": boolean
-        }
-    }
-    
     This function now properly checks if the connection is available before sending.
     """
-    ws = get_tony_websocket()
+    api = get_tony_api()
     
-    # FIX: Use hasattr to safely check if 'closed' attribute exists
-    # Some versions of websockets use different properties to check connection state
-    if not ws or (hasattr(ws, 'closed') and ws.closed) or (hasattr(ws, 'state') and ws.state == websockets.protocol.State.CLOSED):
+    if api is None or api.is_websocket_closed():
         logger.warning("Cannot send context: No active Tony connection or connection is closed")
         return False
     
     try:
-        context_msg = {
-            "command": "context",
-            "game": "ScamSama",
-            "data": {
-                "message": message,
-                "silent": silent
-            }
-        }
-        await ws.send(json.dumps(context_msg))
-        logger.info(f"✓✓✓ SENT CONTEXT TO TONY: {message[:200]}{'...' if len(message) > 200 else ''}")
+        await api.send_context(message, silent)
         return True
     except websockets.ConnectionClosed as e:
         logger.error(f"Tony connection closed while sending context: {e}")
         # Clear the reference since the connection is closed
-        set_tony_websocket(None)
+        set_tony_api(None)
         return False
     except Exception as e:
         logger.error(f"Failed to send context to Tony: {e}", exc_info=True)
         return False
 
-def set_tony_websocket(websocket):
+
+def set_tony_api(api: ScamSamaNeuroAPI) -> None:
     """Sets the global Tony websocket connection reference."""
-    global tony_websocket
-    tony_websocket = websocket
-    if websocket:
+    global tony_api
+    tony_api = api
+    if api:
         logger.info("Tony websocket connection established")
     else:
         logger.info("Tony websocket connection cleared")
 
-async def cleanup_voice_connection():
+
+async def cleanup_voice_connection() -> None:
     """Safely cleans up the voice connection and resets state."""
     logger.info("Cleaning up voice connection...")
     
@@ -214,7 +437,8 @@ async def cleanup_voice_connection():
         logger.info(f"Clearing call SID: {state.call_sid}")
         del state.call_sid
 
-async def handle_twilio_websocket_closure(code, reason):
+
+async def handle_twilio_websocket_closure(code: int, reason: str) -> None:
     """
     Handles Twilio WebSocket closure immediately.
     
@@ -226,7 +450,8 @@ async def handle_twilio_websocket_closure(code, reason):
     # Clean up voice connection
     await cleanup_voice_connection()
 
-async def monitor_call_status():
+
+async def monitor_call_status() -> None:
     """Periodically checks if the call has ended and handles disconnects."""
     await bot.wait_until_ready()
     logger.info("Call status monitoring task started")
@@ -291,8 +516,9 @@ async def monitor_call_status():
         if not immediate_check:
             await asyncio.sleep(0.5)  # Wait before next check
 
+
 @bot.event
-async def on_ready():
+async def on_ready() -> None:
     """Handler for when bot is ready and connected to Discord."""
     logger.info(f"Logged in as {bot.user}")
     bot.loop.create_task(check_voice_channel())
@@ -300,8 +526,9 @@ async def on_ready():
     # Start the Neuro API WebSocket client connection
     bot.loop.create_task(connect_to_tony())
 
+
 # ADDED THIS MISSING FUNCTION - THIS WAS CAUSING THE ERROR
-async def check_voice_channel():
+async def check_voice_channel() -> None:
     """Check if we need to join a voice channel or maintain connection."""
     await bot.wait_until_ready()
     logger.info("Voice channel monitoring task started")
@@ -349,7 +576,8 @@ async def check_voice_channel():
         
         await asyncio.sleep(5)  # Check every 5 seconds
 
-async def connect_to_tony():
+
+async def connect_to_tony() -> None:
     """
     Connects to the Tony server as a Neuro API client.
     
@@ -360,105 +588,26 @@ async def connect_to_tony():
     4. Executes actions and sends 'action/result' responses
     """
     tony_url = "ws://localhost:8000"  # URL of the Tony server
-    game_name = "ScamSama"  # Per spec, should be the game's display name
     
     while True:  # Auto-reconnect loop
         try:
             logger.info(f"Attempting to connect to Tony server at {tony_url}...")
             websocket = await websockets.connect(tony_url)
+            api = ScamSamaNeuroAPI(websocket)
             
             # Set the global reference to this connection
-            set_tony_websocket(websocket)
+            set_tony_api(api)
             logger.info(f"✓ Connected to Tony server at {tony_url}")
             
-            # 1. Send startup message (must be first)
-            startup_msg = {
-                "command": "startup",
-                "game": game_name
-            }
-            await websocket.send(json.dumps(startup_msg))
-            logger.info("✓ Sent startup message to Tony")
+            await api.setup()
             
-            # 2. Register available actions
-            actions = [
-                {
-                    "name": "mute",
-                    "description": "Mutes the outbound audio (so the victim can't hear you)"
-                },
-                {
-                    "name": "unmute",
-                    "description": "Unmutes the outbound audio"
-                },
-                {
-                    "name": "join",
-                    "description": "Initiates a call to the target phone number"
-                },
-                {
-                    "name": "hangup",
-                    "description": "Ends the current call"
-                }
-            ]
-            
-            register_msg = {
-                "command": "actions/register",
-                "game": game_name,
-                "data": {
-                    "actions": actions
-                }
-            }
-            await websocket.send(json.dumps(register_msg))
-            logger.info(f"✓ Registered {len(actions)} actions with Tony")
-            
-            # 3. Main message handling loop
+            # Main message handling loop
             while True:
                 try:
-                    message = await websocket.recv()
-                    msg = json.loads(message)
-                    command = msg["command"]
-                    
-                    logger.debug(f"Received S2C message: {command}")
-                    
-                    if command == "action":
-                        action_data = msg["data"]
-                        action_id = action_data["id"]
-                        action_name = action_data["name"]
-                        # Data is JSON-stringified, so we need to parse it
-                        action_params = json.loads(action_data["data"]) if action_data.get("data") else {}
-                        
-                        logger.info(f"→ Received action request: {action_name} (ID: {action_id})")
-                        
-                        # Execute the action
-                        if action_name == "mute":
-                            success, message = await handle_mute_action()
-                        elif action_name == "unmute":
-                            success, message = await handle_unmute_action()
-                        elif action_name == "join":
-                            success, message = await handle_join_action()
-                        elif action_name == "hangup":
-                            success, message = await handle_hangup_action()
-                        else:
-                            logger.warning(f"Unknown action received: {action_name}")
-                            success, message = False, f"Unknown action: {action_name}"
-                        
-                        # 4. Send action result back to Tony
-                        result_msg = {
-                            "command": "action/result",
-                            "game": game_name,
-                            "data": {
-                                "id": action_id,
-                                "success": success,
-                                "message": message
-                            }
-                        }
-                        await websocket.send(json.dumps(result_msg))
-                        logger.info(f"← Sent action result for {action_name}: success={success}")
-                    
-                    else:
-                        logger.warning(f"Unhandled command received: {command}")
-                
+                    await api.read_message()
                 except websockets.ConnectionClosed:
                     logger.info("Tony server connection closed")
-                    set_tony_websocket(None)
+                    set_tony_api(None)
                     break
                 except Exception as e:
                     logger.error(f"Error processing message: {e}", exc_info=True)
@@ -466,182 +615,11 @@ async def connect_to_tony():
         except Exception as e:
             logger.error(f"❌ Connection to Tony failed: {e}", exc_info=True)
             logger.info("Reconnecting to Tony in 5 seconds...")
-            set_tony_websocket(None)
+            set_tony_api(None)
             await asyncio.sleep(5)
 
-# Neuro API Action Handlers
-# These functions implement the same functionality as the former Discord commands
-# but are now triggered by WebSocket messages instead of Discord messages
-# Each returns a tuple: (success: bool, message: str)
 
-async def handle_mute_action() -> tuple[bool, str]:
-    """Handles the 'mute' Neuro API action."""
-    global is_muted_outbound
-    is_muted_outbound = True
-    logger.info("Outbound audio muted")
-    await send_status_message("Muted!")
-    
-    # Send context to Tony about the mute action
-    await send_context_to_tony("I have muted the outbound audio. The scammer cannot hear me now.")
-    
-    return True, "Successfully muted"
-
-async def handle_unmute_action() -> tuple[bool, str]:
-    """Handles the 'unmute' Neuro API action."""
-    global is_muted_outbound
-    is_muted_outbound = False
-    logger.info("Outbound audio unmuted")
-    await send_status_message("Unmuted!")
-    
-    # Send context to Tony about the unmute action
-    await send_context_to_tony("I have unmuted the outbound audio. The scammer can now hear me.")
-    
-    return True, "Successfully unmuted"
-
-async def handle_join_action() -> tuple[bool, str]:
-    """Handles the 'join' Neuro API action (initiates a call)."""
-    logger.info("Processing 'join' action to initiate call")
-    
-    # First, make sure we're not already in a call
-    if state.call_running:
-        warning_msg = "Already in a call. Please hang up first."
-        logger.warning(warning_msg)
-        await send_status_message(warning_msg)
-        
-        # Send context to Tony
-        await send_context_to_tony(
-            "I'm already in a call. You need to hang up before initiating a new call.",
-            silent=False
-        )
-        
-        return False, warning_msg
-    
-    # Make sure we're not already connected to a voice channel
-    if state.voice_client and state.voice_client.is_connected():
-        logger.info("Already connected to voice channel, disconnecting first...")
-        await cleanup_voice_connection()
-    
-    # Find a voice channel to join (first available in the first guild)
-    if len(bot.guilds) == 0:
-        error_msg = "Error: Bot is not in any guilds"
-        logger.error(error_msg)
-        await send_status_message(error_msg)
-        return False, error_msg
-        
-    guild = bot.guilds[0]
-    voice_channel = next((c for c in guild.channels if isinstance(c, discord.VoiceChannel)), None)
-    
-    if not voice_channel:
-        error_msg = "Error: No voice channels available"
-        logger.error(error_msg)
-        await send_status_message(error_msg)
-        return False, error_msg
-    
-    try:
-        logger.info(f"Connecting to voice channel: {voice_channel.name}")
-        await asyncio.sleep(1)  # Add a small delay
-        state.voice_client = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
-        await send_status_message(f'Joined {voice_channel.name}')
-    except discord.errors.ClientException as e:
-        error_msg = f"Error connecting to voice channel: {e}"
-        logger.error(error_msg)
-        await send_status_message(error_msg)
-        state.voice_client = None
-        return False, error_msg
-    except Exception as e:
-        error_msg = f"Unexpected error while connecting to voice: {e}"
-        logger.error(error_msg)
-        logger.debug(traceback.format_exc())
-        await send_status_message(error_msg)
-        state.voice_client = None
-        return False, error_msg
-
-    try:
-        loop = asyncio.get_running_loop()
-        state.call_running = True
-        call = await loop.run_in_executor(
-            None,
-            lambda: twilio_client.calls.create(
-                to=config.YOUR_NUMBER_TO_CALL,
-                from_=config.YOUR_TWILIO_PHONE_NUMBER,
-                twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>',
-                status_callback=f'{config.NGROK_BASE_URL}/call-status',
-                status_callback_method='POST',
-                status_callback_event=['completed', 'no-answer', 'canceled', 'failed', 'busy'],
-            )
-        )
-        logger.info(f"✓ Call initiated with SID: {call.sid}")
-        await send_status_message(f"Call SID: `{call.sid}`")
-        
-        # Store the call SID for monitoring
-        state.call_sid = call.sid
-        
-        # Clear any pending audio
-        while not state.audio_queue.empty():
-            state.audio_queue.get_nowait()
-        
-        # Start listening and playing
-        state.voice_client.listen(TwilioSink())
-        state.voice_client.play(TwilioAudioSource(state.audio_queue), 
-                               after=lambda e: logger.error(f'Player error: {e}') if e else None)
-        
-        # Send context to Tony that we've initiated a call
-        await send_context_to_tony(
-            "I've successfully initiated a call to the scammer. "
-            "We are now connected and I'm listening to the call. "
-            "Please provide guidance on how to proceed.",
-            silent=False
-        )
-        
-        return True, f"Call initiated with SID: {call.sid}"
-        
-    except Exception as e:
-        error_msg = f"Error making call: {e}"
-        logger.error(error_msg)
-        logger.debug(traceback.format_exc())
-        await send_status_message(error_msg)
-        
-        # Clean up voice connection on call failure
-        await cleanup_voice_connection()
-        
-        # Send context to Tony about the error
-        await send_context_to_tony(
-            f"Failed to initiate call: {str(e)}. I've disconnected from the voice channel to prevent errors.",
-            silent=False
-        )
-        
-        return False, error_msg
-
-async def handle_hangup_action() -> tuple[bool, str]:
-    """Handles the 'hangup' Neuro API action (ends the call)."""
-    logger.info("Processing 'hangup' action to end call")
-    
-    # If we're not in a call, just return
-    if not state.call_running:
-        warning_msg = "Not currently in a call"
-        logger.warning(warning_msg)
-        await send_status_message(warning_msg)
-        
-        # Send context to Tony
-        await send_context_to_tony(
-            "I'm not currently in a call, so there's nothing to hang up.",
-            silent=False
-        )
-        
-        return False, warning_msg
-    
-    # Clean up the voice connection
-    await cleanup_voice_connection()
-    
-    # Send context to Tony that we've hung up
-    await send_context_to_tony(
-        "I've ended the call as requested. We are no longer connected to the scammer.",
-        silent=False
-    )
-        
-    return True, "Successfully hung up"
-
-async def send_status_message(message):
+async def send_status_message(message: str) -> None:
     """
     Sends a status message to the command channel.
     
@@ -668,6 +646,7 @@ async def send_status_message(message):
             logger.error(f"Failed to send status message: {e}")
     else:
         logger.warning("No command channel available to send status message")
+
 
 # Start the bot
 if __name__ == "__main__":
