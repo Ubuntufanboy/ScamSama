@@ -11,6 +11,8 @@ import base64
 import json
 import audioop
 from flask import Flask, request
+# types: import-untyped error: Skipping analyzing "flask_sock": module is installed, but missing library stubs or py.typed marker
+# types: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
 from flask_sock import Sock
 import state
 
@@ -19,7 +21,7 @@ app = Flask(__name__)
 sock = Sock(app)
 
 @app.route('/call-status', methods=['POST'])
-def call_status():
+def call_status() -> str:
     status = request.form['CallStatus']
     print(f"Call status: {status}")
     if status == 'completed' or status == 'no-answer':
@@ -27,7 +29,7 @@ def call_status():
     return ''
 
 @sock.route('/media')
-def media(ws):
+def media(ws) -> str:
     state.ws_open = True
     state.twilio_websocket = ws
     print(">>> Twilio WebSocket connection established.")

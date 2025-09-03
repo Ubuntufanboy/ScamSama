@@ -29,10 +29,13 @@ import websockets
 import logging
 import traceback
 import uuid
-from typing import Dict, Any, Optional
+from typing import Any, TYPE_CHECKING
 from neuro_websockets import AbstractAsyncioWebsocketsNeuroAPI
 from neuro_api.command import Action
 from neuro_api.api import NeuroAction
+
+if TYPE_CHECKING:
+    import queue
 
 # Configure detailed logging
 logging.basicConfig(
@@ -53,13 +56,15 @@ intents.voice_states = True
 intents.message_content = True
 bot = discord.Client(intents=intents)
 
+
 class TwilioAudioSource(discord.AudioSource):
     """Audio source that pulls data from a queue for sending to Twilio."""
-    def __init__(self, queue: queue.Queue) -> None:
+    def __init__(self, queue: queue.Queue[bytes]) -> None:
         self.queue = queue
 
-    def read(self):
+    def read(self) -> bytes:
         return self.queue.get()
+
 
 class TwilioSink(AudioSink):
     """Audio sink that processes incoming voice data and sends it to Twilio."""
@@ -134,12 +139,12 @@ class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
     __slots__ = ()
 
     def __init__(self, websocket: websockets.ClientConnection) -> None:
-        super().__init__(self, "ScamSama", websocket)
+        super().__init__("ScamSama", websocket)
 
     async def setup(self) -> None:
         """Handle setup."""
         # 1. Send startup message (must be first)
-        await api.send_startup_command()
+        await self.send_startup_command()
         logger.info("✓ Sent startup message to Tony")
         
         # 2. Register available actions
@@ -162,7 +167,7 @@ class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
             ),
         ]
         
-        await api.register_actions(actions)
+        await self.register_actions(actions)
         logger.info(f"✓ Registered {len(actions)} actions with Tony")
 
     async def handle_action(self, action: NeuroAction) -> None:
@@ -170,7 +175,7 @@ class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
         # Data is JSON-stringified, so we need to parse it
         action_params = json.loads(action.data) if action.data is not None else {}
         
-        logger.info(f"→ Received action request: {action_name} (ID: {action_id})")
+        logger.info(f"→ Received action request: {action.name} (ID: {action.id_})")
 
         success = True
         message: str | None = None
@@ -282,13 +287,15 @@ class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
         try:
             loop = asyncio.get_running_loop()
             state.call_running = True
+            ngrok_base_url = config.NGROK_BASE_URL
+            assert ngrok_base_url is not None
             call = await loop.run_in_executor(
                 None,
                 lambda: twilio_client.calls.create(
                     to=config.YOUR_NUMBER_TO_CALL,
                     from_=config.YOUR_TWILIO_PHONE_NUMBER,
-                    twiml=f'<Response><Connect><Stream url="{config.NGROK_BASE_URL.replace("https", "wss")}/media"/></Connect></Response>',
-                    status_callback=f'{config.NGROK_BASE_URL}/call-status',
+                    twiml=f'<Response><Connect><Stream url="{ngrok_base_url.replace("https", "wss")}/media"/></Connect></Response>',
+                    status_callback=f'{ngrok_base_url}/call-status',
                     status_callback_method='POST',
                     status_callback_event=('completed', 'no-answer', 'canceled', 'failed', 'busy'),
                 )
@@ -304,6 +311,7 @@ class ScamSamaNeuroAPI(AbstractAsyncioWebsocketsNeuroAPI):
                 state.audio_queue.get_nowait()
             
             # Start listening and playing
+            assert state.voice_client is not None
             state.voice_client.listen(TwilioSink())
             state.voice_client.play(TwilioAudioSource(state.audio_queue), 
                                    after=lambda e: logger.error(f'Player error: {e}') if e else None)
@@ -400,7 +408,7 @@ async def send_context_to_tony(message: str, silent: bool=False) -> bool:
         return False
 
 
-def set_tony_api(api: ScamSamaNeuroAPI) -> None:
+def set_tony_api(api: ScamSamaNeuroAPI | None) -> None:
     """Sets the global Tony websocket connection reference."""
     global tony_api
     tony_api = api
@@ -648,7 +656,12 @@ async def send_status_message(message: str) -> None:
         logger.warning("No command channel available to send status message")
 
 
+def run() -> None:
+    logger.info("Starting ScamSama Discord bot with Neuro API client integration")
+    token = config.DISCORD_BOT_TOKEN
+    assert token is not None
+    bot.run(token)
+
 # Start the bot
 if __name__ == "__main__":
-    logger.info("Starting ScamSama Discord bot with Neuro API client integration")
-    bot.run(config.TOKEN)
+    run()

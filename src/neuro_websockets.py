@@ -4,8 +4,21 @@
 
 from __future__ import annotations
 
+import logging
+
 from neuro_api.api import AbstractNeuroAPI
 import websockets
+
+# Configure detailed logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=(
+        logging.FileHandler("scamsama.log"),
+        logging.StreamHandler()
+    )
+)
+logger = logging.getLogger("ScamSama")
 
 
 class AbstractAsyncioWebsocketsNeuroAPI(AbstractNeuroAPI):
