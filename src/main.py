@@ -23,11 +23,11 @@ def main() -> None:
     flask_thread.start()
     if config.DISCORD_BOT_TOKEN is None:
         print("Error: Discord Bot Token Not Set. Please set DISCORD_BOT_TOKEN.")
-    else:
-        try:
-            bot.run(config.DISCORD_BOT_TOKEN)
-        except discord.errors.LoginFailure:
-            print("Error: Invalid Discord Bot Token. Please check your DISCORD_BOT_TOKEN.")
+        return
+    try:
+        bot.run(config.DISCORD_BOT_TOKEN)
+    except discord.errors.LoginFailure:
+        print("Error: Invalid Discord Bot Token. Please check your DISCORD_BOT_TOKEN.")
 
 
 if __name__ == '__main__':
