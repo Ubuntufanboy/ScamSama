@@ -1,5 +1,6 @@
 # ScamSama Requirements
 # Core Dependencies for ScamSama functionality
+neuro_api~=2.0.0
 
 # Discord Bot Framework
 discord.py>=2.3.0
