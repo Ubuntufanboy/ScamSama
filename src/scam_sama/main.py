@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import threading
 import discord
-import config
-from discord_bot import bot
-from web_server import app
+
+from scam_sama import config
+from scam_sama.discord_bot import bot
+from scam_sama.web_server import app
 
 
 def main() -> None:

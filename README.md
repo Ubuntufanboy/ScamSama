@@ -40,12 +40,15 @@ You first need to set up some free accounts (Although for practical usage paid a
     - Create discord bot with voice channel permissions
     - Invite them into a **PRIVATE** discord server (Bot sometimes leaks info)
 
-4. Running the bot
+4. Configure/run bot
     - Run `python3 launcher.py` and follow the on-screen instructions.
     - The launcher will guide you through the setup process, including creating the `.env` file.
     - To run the bot without the verbose output, use the `-v` flag: `python3 launcher.py -v`
     - Join a voice channel and type `!callme` in a text channel. (All other users should be muted)
     - The bot will automatically select the correct audio codec based on your country code (set in the `.env` file).
+
+5. Run bot
+    - Run `run_scam_sama` to start any time after initial configuration.
 
 ## Contributing
 

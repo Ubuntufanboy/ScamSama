@@ -10,9 +10,11 @@ Thank you VedalAI for creating such a wonderful platform and using my code! I ho
 import base64
 import json
 import audioop
+
+from scam_sama import state
+
 from flask import Flask, request
 from flask_sock import Sock
-import state
 
 # Flask works pretty well for this. Just make sure you are hosting the ngrok proxy as well for this to work properly
 app = Flask(__name__)

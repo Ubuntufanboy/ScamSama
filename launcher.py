@@ -41,7 +41,7 @@ class ScamSamaLauncher:
         self.verbose = verbose
         self.root_dir = Path(__file__).parent
         self.env_file = self.root_dir / ".env"
-        self.src_dir = self.root_dir / "src"
+        self.src_dir = self.root_dir / "src" / "scam_sama"
         self.config: dict[str, str] = {}
         self.ngrok_process: subprocess.Popen[str]
         self.flask_running = False
@@ -92,9 +92,9 @@ class ScamSamaLauncher:
             console.print("All prerequisites found!", style="green")
         return True
 
-    def install_requirements(self) -> bool:
+    def install_project(self) -> bool:
         if self.verbose:
-            console.print("\nInstalling Python requirements...", style="bold yellow")
+            console.print("\nInstalling Project...", style="bold yellow")
 
         with Progress(
             SpinnerColumn(),
@@ -107,14 +107,14 @@ class ScamSamaLauncher:
 
             try:
                 result = subprocess.run([
-                    sys.executable, "-m", "pip", "install", "-r", "requirements.txt"
+                    sys.executable, "-m", "pip", "install", "-e", self.root_dir
                 ], capture_output=True, text=True, cwd=self.root_dir)
 
                 if result.returncode == 0:
                     if self.verbose:
-                        console.print("Requirements installed successfully!", style="green")
+                        console.print("Project installed successfully!", style="green")
                 else:
-                    console.print(f"Error installing requirements:\n{result.stderr}", style="red")
+                    console.print(f"Error installing project:\n{result.stderr}", style="red")
                     return False
             except Exception as e:
                 console.print(f"Error: {e}", style="red")
@@ -257,8 +257,8 @@ class ScamSamaLauncher:
             console.print("\nStarting ScamSama...", style="bold yellow")
 
         try:
-            os.chdir(self.src_dir)
-            subprocess.run([sys.executable, "main.py"])
+            os.chdir(self.root_dir)
+            subprocess.run(["run_scam_sama"])
         except KeyboardInterrupt:
             if self.verbose:
                 console.print("\nScamSama stopped by user", style="yellow")
@@ -299,7 +299,7 @@ class ScamSamaLauncher:
 
             console.print("\nMain Menu", style="bold cyan")
             console.print("1. Setup Configuration")
-            console.print("2. Install Requirements")
+            console.print("2. Install Project")
             console.print("3. Start ngrok Tunnel")
             console.print("4. Run ScamSama")
             console.print("5. Show Status")
@@ -313,7 +313,7 @@ class ScamSamaLauncher:
                 input("\nPress Enter to continue...")
 
             elif choice == "2":
-                if not self.install_requirements():
+                if not self.install_project():
                     input("\nPress Enter to continue...")
 
             elif choice == "3":
@@ -340,7 +340,7 @@ class ScamSamaLauncher:
                     input("\nPress Enter to continue...")
                     continue
 
-                if not self.install_requirements():
+                if not self.install_project():
                     input("\nPress Enter to continue...")
                     continue
 

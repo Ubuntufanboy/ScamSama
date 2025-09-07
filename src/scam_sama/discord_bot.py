@@ -18,19 +18,21 @@ import asyncio
 import base64
 import json
 import audioop
-import discord
-from discord.ext import voice_recv
-from discord.ext.voice_recv import AudioSink
-import state
-import config
-from twilio_integration import twilio_client
-# Import websockets library for Neuro API communication
-import websockets
 import logging
 import traceback
 import uuid
 from typing import Any, TYPE_CHECKING
-from neuro_websockets import AbstractAsyncioWebsocketsNeuroAPI
+
+from scam_sama import state
+from scam_sama import config
+from scam_sama.twilio_integration import twilio_client
+from scam_sama.neuro_websockets import AbstractAsyncioWebsocketsNeuroAPI
+
+# Import websockets library for Neuro API communication
+import websockets
+import discord
+from discord.ext import voice_recv
+from discord.ext.voice_recv import AudioSink
 from neuro_api.command import Action
 from neuro_api.api import NeuroAction
 
