@@ -11,8 +11,6 @@ import base64
 import json
 import audioop
 from flask import Flask, request
-# types: import-untyped error: Skipping analyzing "flask_sock": module is installed, but missing library stubs or py.typed marker
-# types: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
 from flask_sock import Sock
 import state
 
