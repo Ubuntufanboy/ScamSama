@@ -2,6 +2,8 @@
 "Fighting crime, one meme at a time"
 
 Created by Ubuntufanboy
+Extensive assistance from Ktrain and Coolcat467
+Show them some love!
 
 Discord: @apolloiscool for any questions
 
