@@ -1,18 +1,33 @@
+[build-system]
+requires = ["setuptools >= 64"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "Scam-sama"
-version = "0.1.0"
+name = "scam_sama"
+dynamic = ["version"]
 description = "Did you know Neuro became a scambaiter?"
-readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = "LICENSE"}
 requires-python = ">=3.13"
 dependencies = [
     "discord-ext-voice-recv>=0.5.2a179",
     "discord-py>=2.5.2",
     "flask>=3.1.1",
     "flask-sock>=0.7.0",
-    "neuro-api>=1.0.0",
+    "neuro-api~=2.0.0",
     "pyfiglet>=1.0.3",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
     "rich>=14.0.0",
     "twilio>=9.6.5",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "scam_sama.__version__"}
+
+[project.urls]
+"Source" = "https://github.com/Ubuntufanboy/ScamSama"
+"Bug Tracker" = "https://github.com/Ubuntufanboy/ScamSama/issues"
+
+[project.scripts]
+run_scam_sama = "scam_sama.main:main"
