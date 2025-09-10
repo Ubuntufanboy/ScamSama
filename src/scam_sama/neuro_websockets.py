@@ -47,7 +47,7 @@ class AbstractAsyncioWebsocketsNeuroAPI(AbstractNeuroAPI):
         game_title: str,
         websocket: websockets.ClientConnection,
     ) -> None:
-        """Initialize NeuroAPI.""" 
+        """Initialize NeuroAPI."""
         super().__init__(game_title)
         self.websocket = websocket
 
@@ -79,4 +79,4 @@ class AbstractAsyncioWebsocketsNeuroAPI(AbstractNeuroAPI):
 
     async def send_context(self, message: str, silent: bool = True) -> None:
         await super().send_context(message, silent)
-        logger.info(f"✓✓✓ SENT CONTEXT TO TONY: {message[:200]}{'...' if len(message) > 200 else ''}")
+        logger.info(f"✓✓✓ SENT CONTEXT: {message[:200]}{'...' if len(message) > 200 else ''}")
